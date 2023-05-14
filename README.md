@@ -1,3 +1,8 @@
+### Description
+
+This project utilizes [cdktf](https://developer.hashicorp.com/terraform/cdktf) to deploy lambda functions to AWS. 
+It also creates an API Gateway, Cognito User Pool, and Postgres RDS instance based on the functions' configuration.
+
 ### Get started
 
 1. Install [Node.js](https://nodejs.org/en/) (v10.16.0 or higher).
