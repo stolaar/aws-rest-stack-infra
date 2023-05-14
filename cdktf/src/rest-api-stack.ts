@@ -1,11 +1,16 @@
 import * as random from "@cdktf/provider-random"
 import * as aws from "@cdktf/provider-aws"
 import { Construct } from "constructs"
-import { AssetType, TerraformStack, TerraformAsset } from "cdktf"
+import { AssetType, TerraformAsset, TerraformStack } from "cdktf"
 import * as path from "path"
 
-import { ILambdaFunctionConfig } from "./types"
-import { appConfig } from "./utils"
+import { appConfig, TLambdaConfig } from "./utils"
+import { createDatabase, createSecurityGroup } from "./create-database"
+import {
+  createCognitoUserPool,
+  createCognitoUserPoolClient,
+} from "./create-cognito"
+import { createEndpoints } from "./utils/lambda.utils"
 
 const lambdaRolePolicy = {
   Version: "2012-10-17",
@@ -24,16 +29,16 @@ const lambdaRolePolicy = {
 export class RestApiStack extends TerraformStack {
   public invocationURL: string
 
-  constructor(
-    scope: Construct,
-    name: string,
-    configs: ILambdaFunctionConfig[],
-  ) {
+  constructor(scope: Construct, name: string, configs: TLambdaConfig[]) {
     super(scope, name)
 
     new aws.provider.AwsProvider(this, "aws", {
       region: appConfig.region,
     })
+
+    const securityGroup = createSecurityGroup(this, "security-group")
+    const cognito = createCognitoUserPool(this, "cognito")
+    createCognitoUserPoolClient(this, "cognito-client", cognito.id)
 
     new random.provider.RandomProvider(this, "random")
 
@@ -45,11 +50,30 @@ export class RestApiStack extends TerraformStack {
       },
     )
 
+    const auth = new aws.apiGatewayAuthorizer.ApiGatewayAuthorizer(
+      this,
+      "auth",
+      {
+        restApiId: restApi.id,
+        type: "COGNITO_USER_POOLS",
+        name: "cognito-authorizer",
+        providerArns: [cognito.arn],
+      },
+    )
+
     const lambdas = configs.map((config) => {
       const lambdaName = config.name
 
       const randName = new random.pet.Pet(this, `rand-name-${lambdaName}`)
-
+      let databaseInstance: aws.dbInstance.DbInstance | null = null
+      // TODO: Find a way to create a database under the same cluster
+      if (config.useDatabase) {
+        databaseInstance = createDatabase(
+          this,
+          `${appConfig.appName}-${appConfig.appENV}-${lambdaName}-database-instance`,
+          [securityGroup.id],
+        )
+      }
       const asset = new TerraformAsset(this, `lambda-asset-${lambdaName}`, {
         path: path.resolve(__dirname, config.path),
         type: AssetType.ARCHIVE,
@@ -86,6 +110,11 @@ export class RestApiStack extends TerraformStack {
           runtime: config.runtime,
           role: role.arn,
           sourceCodeHash: asset.assetHash,
+          environment: {
+            variables: {
+              dbUrl: databaseInstance?.endpoint ?? "",
+            },
+          },
         },
       )
 
@@ -96,71 +125,6 @@ export class RestApiStack extends TerraformStack {
           policyArn:
             "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
           role: role.name,
-        },
-      )
-
-      const resource = new aws.apiGatewayResource.ApiGatewayResource(
-        this,
-        config.stageName,
-        {
-          restApiId: restApi.id,
-          parentId: restApi.rootResourceId,
-          pathPart: lambdaName,
-        },
-      )
-
-      const method = new aws.apiGatewayMethod.ApiGatewayMethod(
-        this,
-        `${lambdaName}-method`,
-        {
-          restApiId: restApi.id,
-          resourceId: resource.id,
-          httpMethod: "ANY",
-          authorization: "NONE",
-          apiKeyRequired: false,
-        },
-      )
-
-      const methodResponse =
-        new aws.apiGatewayMethodResponse.ApiGatewayMethodResponse(
-          this,
-          `${lambdaName}-method-response`,
-          {
-            restApiId: restApi.id,
-            resourceId: resource.id,
-            httpMethod: method.httpMethod,
-            statusCode: "200",
-            responseModels: {
-              "application/json": "Empty",
-            },
-          },
-        )
-
-      const integration = new aws.apiGatewayIntegration.ApiGatewayIntegration(
-        this,
-        `${lambdaName}-api-integration`,
-        {
-          restApiId: restApi.id,
-          type: "AWS_PROXY",
-          uri: lambdaFunc.invokeArn,
-          resourceId: resource.id,
-          httpMethod: method.httpMethod,
-          integrationHttpMethod: "POST",
-        },
-      )
-
-      new aws.apiGatewayIntegrationResponse.ApiGatewayIntegrationResponse(
-        this,
-        `${lambdaName}-integration-response`,
-        {
-          restApiId: restApi.id,
-          resourceId: resource.id,
-          httpMethod: method.httpMethod,
-          statusCode: methodResponse.statusCode,
-          dependsOn: [integration],
-          responseTemplates: {
-            "application/json": "",
-          },
         },
       )
 
@@ -175,18 +139,33 @@ export class RestApiStack extends TerraformStack {
         },
       )
 
-      return { method, integration }
+      return createEndpoints(
+        this,
+        `${appConfig.appName}-${appConfig.appENV}-${lambdaName}`,
+        {
+          lambdaConfig: config,
+          lambdaArn: lambdaFunc.invokeArn,
+          apiConfig: {
+            restApi,
+            auth,
+          },
+        },
+      )
     })
+
+    const methodsAndIntegrations = lambdas.flatMap((lambda) =>
+      lambda.reduce((acc, l) => {
+        acc.push(l.method, l.integration)
+        return acc
+      }, [] as (aws.apiGatewayMethod.ApiGatewayMethod | aws.apiGatewayIntegration.ApiGatewayIntegration)[]),
+    )
 
     const apiDeployment = new aws.apiGatewayDeployment.ApiGatewayDeployment(
       this,
       "apiDeployment",
       {
         restApiId: restApi.id,
-        dependsOn: lambdas.flatMap((lambda) => [
-          lambda.method,
-          lambda.integration,
-        ]),
+        dependsOn: methodsAndIntegrations,
       },
     )
 

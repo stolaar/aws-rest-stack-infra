@@ -5,4 +5,5 @@ export interface ILambdaFunctionConfig {
   stageName: string
   version: string
   name: string
+  useDatabase?: boolean
 }
