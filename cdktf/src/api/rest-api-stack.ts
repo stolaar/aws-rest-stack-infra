@@ -4,13 +4,16 @@ import { Construct } from "constructs"
 import { AssetType, TerraformAsset, TerraformStack } from "cdktf"
 import * as path from "path"
 
-import { appConfig, TLambdaConfig } from "./utils"
-import { createDatabase, createSecurityGroup } from "./create-database"
+import { appConfig, TLambdaConfig, scopeName } from "../utils"
+import {
+  createDatabase,
+  createSecurityGroup,
+} from "../database/create-database"
 import {
   createCognitoUserPool,
   createCognitoUserPoolClient,
-} from "./create-cognito"
-import { createEndpoints } from "./utils/lambda.utils"
+} from "../cognito/create-cognito"
+import { createEndpoints } from "./create-endpoints"
 
 const lambdaRolePolicy = {
   Version: "2012-10-17",
@@ -46,7 +49,7 @@ export class RestApiStack extends TerraformStack {
       this,
       "restApi",
       {
-        name: `${appConfig.appName}-${appConfig.appENV}-rest`,
+        name: scopeName("rest"),
       },
     )
 
@@ -65,27 +68,36 @@ export class RestApiStack extends TerraformStack {
       const lambdaName = config.name
 
       const randName = new random.pet.Pet(this, `rand-name-${lambdaName}`)
-      let databaseInstance: aws.dbInstance.DbInstance | null = null
+      let dbUrl = null
       // TODO: Find a way to create a database under the same cluster
       if (config.useDatabase) {
-        databaseInstance = createDatabase(
+        dbUrl = createDatabase(
           this,
-          `${appConfig.appName}-${appConfig.appENV}-${lambdaName}-database-instance`,
+          scopeName(lambdaName, "database-instance"),
           [securityGroup.id],
+          config.dbName,
         )
       }
-      const asset = new TerraformAsset(this, `lambda-asset-${lambdaName}`, {
-        path: path.resolve(__dirname, config.path),
-        type: AssetType.ARCHIVE,
-      })
+      const asset = new TerraformAsset(
+        this,
+        scopeName(lambdaName, "lambda-asset"),
+        {
+          path: path.resolve(__dirname, config.path),
+          type: AssetType.ARCHIVE,
+        },
+      )
 
-      const bucket = new aws.s3Bucket.S3Bucket(this, `bucket-${lambdaName}`, {
-        bucketPrefix: `${appConfig.appName}-${appConfig.appENV}-${lambdaName}`,
-      })
+      const bucket = new aws.s3Bucket.S3Bucket(
+        this,
+        scopeName(lambdaName, "bucket"),
+        {
+          bucketPrefix: `${appConfig.appName}-${appConfig.appENV}-${lambdaName}`,
+        },
+      )
 
       const lambdaArchive = new aws.s3Object.S3Object(
         this,
-        `lambda-archive-${lambdaName}`,
+        scopeName(lambdaName, "lambda-archive"),
         {
           bucket: bucket.bucket,
           key: `${config.version}/${asset.fileName}`,
@@ -94,14 +106,18 @@ export class RestApiStack extends TerraformStack {
         },
       )
 
-      const role = new aws.iamRole.IamRole(this, `lambda-exec-${lambdaName}`, {
-        name: `lambda-role-${appConfig.appENV}-${lambdaName}-${randName.id}`,
-        assumeRolePolicy: JSON.stringify(lambdaRolePolicy),
-      })
+      const role = new aws.iamRole.IamRole(
+        this,
+        scopeName(lambdaName, "lambda-exec"),
+        {
+          name: `lambda-role-${appConfig.appENV}-${lambdaName}-${randName.id}`,
+          assumeRolePolicy: JSON.stringify(lambdaRolePolicy),
+        },
+      )
 
       const lambdaFunc = new aws.lambdaFunction.LambdaFunction(
         this,
-        `lambda-${lambdaName}`,
+        scopeName(lambdaName, "lambda"),
         {
           functionName: `${appConfig.appName}-${appConfig.appENV}-function-${lambdaName}-${randName.id}`,
           s3Bucket: bucket.bucket,
@@ -112,7 +128,7 @@ export class RestApiStack extends TerraformStack {
           sourceCodeHash: asset.assetHash,
           environment: {
             variables: {
-              dbUrl: databaseInstance?.endpoint ?? "",
+              dbUrl: dbUrl ?? "",
             },
           },
         },
@@ -120,7 +136,7 @@ export class RestApiStack extends TerraformStack {
 
       new aws.iamRolePolicyAttachment.IamRolePolicyAttachment(
         this,
-        `lambda-managed-policy-${lambdaName}`,
+        scopeName(lambdaName, "lambda-managed-policy"),
         {
           policyArn:
             "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
@@ -130,7 +146,7 @@ export class RestApiStack extends TerraformStack {
 
       new aws.lambdaPermission.LambdaPermission(
         this,
-        `apigw-lambda-${lambdaName}`,
+        scopeName(lambdaName, "apigw-lambda"),
         {
           functionName: lambdaFunc.functionName,
           action: "lambda:InvokeFunction",
@@ -139,18 +155,14 @@ export class RestApiStack extends TerraformStack {
         },
       )
 
-      return createEndpoints(
-        this,
-        `${appConfig.appName}-${appConfig.appENV}-${lambdaName}`,
-        {
-          lambdaConfig: config,
-          lambdaArn: lambdaFunc.invokeArn,
-          apiConfig: {
-            restApi,
-            auth,
-          },
+      return createEndpoints(this, scopeName(lambdaName), {
+        lambdaConfig: config,
+        lambdaArn: lambdaFunc.invokeArn,
+        apiConfig: {
+          restApi,
+          auth,
         },
-      )
+      })
     })
 
     const methodsAndIntegrations = lambdas.flatMap((lambda) =>

@@ -1,4 +1,4 @@
-import { TEndpointConfig, TLambdaConfig } from "./lambda-config.schema"
+import { TEndpointConfig, TLambdaConfig, removeChar, scopeName } from "../utils"
 import { Construct } from "constructs"
 import * as aws from "@cdktf/provider-aws"
 
@@ -55,7 +55,7 @@ const createApiMethod = (
 
   const method = new aws.apiGatewayMethod.ApiGatewayMethod(
     scope,
-    `${idPrefix}-method`,
+    scopeName(idPrefix, "method"),
     {
       restApiId: restApi.id,
       resourceId: resource.id,
@@ -74,7 +74,7 @@ const createApiMethod = (
   const methodResponse =
     new aws.apiGatewayMethodResponse.ApiGatewayMethodResponse(
       scope,
-      `${idPrefix}-method-response`,
+      scopeName(idPrefix, "method-response"),
       {
         restApiId: restApi.id,
         resourceId: resource.id,
@@ -88,7 +88,7 @@ const createApiMethod = (
 
   const integration = new aws.apiGatewayIntegration.ApiGatewayIntegration(
     scope,
-    `${idPrefix}-api-integration`,
+    scopeName(idPrefix, "api-integration"),
     {
       restApiId: restApi.id,
       type: "AWS_PROXY",
@@ -101,7 +101,7 @@ const createApiMethod = (
 
   new aws.apiGatewayIntegrationResponse.ApiGatewayIntegrationResponse(
     scope,
-    `${idPrefix}-integration-response`,
+    scopeName(idPrefix, "integration-response"),
     {
       restApiId: restApi.id,
       resourceId: resource.id,
@@ -136,7 +136,7 @@ export const createEndpoints = (
     endpoints = lambdaConfig.endpoints.map((endpoint) => {
       const resource = createResource(
         scope,
-        `${endpoint.path.replace(/[-\/]/g, "")}${constructPrefix}`,
+        removeChar(scopeName(endpoint.path, constructPrefix), "-/"),
         endpoint.path.replace("/", ""),
         config.apiConfig as IApiConfig,
         parentResource.id,
@@ -153,23 +153,27 @@ export const createEndpoints = (
   }
   const resource = createResource(
     scope,
-    `proxy-${constructPrefix}`,
+    scopeName("proxy", constructPrefix),
     `{proxy+}`,
     config.apiConfig as IApiConfig,
     parentResource.id,
   )
-  const proxyMethod = createApiMethod(scope, `proxy-${constructPrefix}`, {
-    ...config,
-    apiConfig: {
-      ...config.apiConfig,
-      resource,
+  const proxyMethod = createApiMethod(
+    scope,
+    scopeName("proxy", constructPrefix),
+    {
+      ...config,
+      apiConfig: {
+        ...config.apiConfig,
+        resource,
+      },
+      endpoint: {
+        path: `{proxy+}`,
+        method: "ANY",
+        secure: true,
+      },
     },
-    endpoint: {
-      path: `{proxy+}`,
-      method: "ANY",
-      secure: true,
-    },
-  })
+  )
 
   return [...endpoints, proxyMethod]
 }

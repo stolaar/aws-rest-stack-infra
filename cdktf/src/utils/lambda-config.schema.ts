@@ -14,6 +14,7 @@ export const lambdaConfigSchema = z.object({
   version: z.string(),
   name: z.string(),
   baseEndpoint: z.string(),
+  dbName: z.string().optional(),
   useDatabase: z.boolean().optional(),
   endpoints: z.array(endpointConfigSchema).optional(),
 })

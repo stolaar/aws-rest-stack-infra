@@ -1,5 +1,5 @@
 import { app } from "./src/app"
-import { RestApiStack } from "./src/rest-api-stack"
+import { RestApiStack } from "./src/api/rest-api-stack"
 
 import { getFunctions } from "../functions"
 import { lambdaConfigSchema } from "./src/utils"
