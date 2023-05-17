@@ -8,9 +8,9 @@ export const createSecurityGroup = (scope: Construct, name: string) => {
     name: scopeName(name),
     ingress: [
       {
-        fromPort: 3306,
-        toPort: 3306,
-        protocol: "tcp",
+        fromPort: 0,
+        toPort: 0,
+        protocol: "-1",
         cidrBlocks: ["0.0.0.0/0"],
       },
     ],
@@ -32,9 +32,10 @@ export const createDatabase = (
 ) => {
   const secrets = new aws.secretsmanagerSecret.SecretsmanagerSecret(
     scope,
-    scopeName(name, "secret"),
+    scopeName(name, "db-secret"),
     {
-      name: scopeName(name, "password"),
+      name: scopeName(name, "db-password"),
+      recoveryWindowInDays: 0,
     },
   )
 
