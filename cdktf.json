@@ -1,10 +1,17 @@
 {
-  "language": "typescript",
-  "app": "npx ts-node ./cdktf/main.ts",
-  "projectId": "16246739-8e52-42fa-ab34-ab471544ad68",
+  "language": "go",
+  "app": "go run main.go",
+  "codeMakerOutput": "generated",
+  "projectId": "d6e6fd46-7826-476a-8934-b8a5a5525669",
   "sendCrashReports": "false",
-  "terraformProviders": [],
-  "terraformModules": [],
+  "terraformProviders": ["hashicorp/aws@~> 3.70.0"],
+  "terraformModules": [
+        {
+            "name": "eks",
+            "source": "terraform-aws-modules/eks/aws",
+            "version": "~> 19.0"
+        }
+  ],
   "context": {
     "excludeStackIdFromLogicalIds": "true",
     "allowSepCharsInLogicalIds": "true"

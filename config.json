@@ -1,0 +1,22 @@
+{
+  "useCognito": true,
+  "lambdaFunctions": [
+    {
+      "handler": "dist/index.handler",
+      "stageName": "dev",
+      "version": "71f75",
+      "name": "user-management-service",
+      "runtime": "nodejs18.x",
+      "useDatabase": false,
+      "baseEndpoint": "/users",
+      "useCognito": false
+    }
+  ],
+  "MLModels": [
+    {
+      "name": "image-classification",
+      "version": "1.0",
+      "artifact": "s3://sagemaker-us-east-1-123456789012/image-classification-2021-08-30-20-00-00-000/output/model.tar.gz"
+    }
+  ]
+}
