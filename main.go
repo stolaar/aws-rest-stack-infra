@@ -2,8 +2,10 @@ package main
 
 import (
 	"github.com/aws/constructs-go/constructs/v10"
+	"github.com/aws/jsii-runtime-go"
 	"github.com/hashicorp/terraform-cdk-go/cdktf"
 	infraConfig "github.com/stolaar/aws-infra/config"
+	"github.com/stolaar/aws-infra/generated/hashicorp/aws/provider"
 	"github.com/stolaar/aws-infra/modules/api_gateway"
 	"github.com/stolaar/aws-infra/modules/cognito"
 	"github.com/stolaar/aws-infra/modules/lambda"
@@ -11,6 +13,10 @@ import (
 
 func AWSRestStack(scope constructs.Construct, id string) cdktf.TerraformStack {
 	stack := cdktf.NewTerraformStack(scope, &id)
+
+	provider.NewAwsProvider(stack, jsii.String("aws"), &provider.AwsProviderConfig{
+		Region: jsii.String("eu-central-1"),
+	})
 
 	config := infraConfig.GetInfraConfig()
 

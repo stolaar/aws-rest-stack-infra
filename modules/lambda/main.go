@@ -31,7 +31,7 @@ func NewLambda(scope constructs.Construct, id string, config *NewLambdaConfig) {
   		],
 	}`
 
-	role := iamrole.NewIamRole(scope, &id, &iamrole.IamRoleConfig{
+	role := iamrole.NewIamRole(scope, jsii.String(id+"-role"), &iamrole.IamRoleConfig{
 		Name:             jsii.String(config.Name + "-role"),
 		AssumeRolePolicy: jsii.String(rolePolicy),
 	})
@@ -43,14 +43,15 @@ func NewLambda(scope constructs.Construct, id string, config *NewLambdaConfig) {
 		Handler:        jsii.String(config.Handler),
 		Runtime:        jsii.String(config.Runtime),
 		SourceCodeHash: jsii.String(config.Version),
+		Role:           role.Arn(),
 	})
 
-	iamrolepolicyattachment.NewIamRolePolicyAttachment(scope, &id, &iamrolepolicyattachment.IamRolePolicyAttachmentConfig{
+	iamrolepolicyattachment.NewIamRolePolicyAttachment(scope, jsii.String(id+"-execution-role"), &iamrolepolicyattachment.IamRolePolicyAttachmentConfig{
 		PolicyArn: jsii.String("arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"),
 		Role:      role.Name(),
 	})
 
-	lambdapermission.NewLambdaPermission(scope, &id, &lambdapermission.LambdaPermissionConfig{
+	lambdapermission.NewLambdaPermission(scope, jsii.String(id+"invocation-permission"), &lambdapermission.LambdaPermissionConfig{
 		Action:       jsii.String("lambda:InvokeFunction"),
 		FunctionName: lambdaFunction.FunctionName(),
 		Principal:    jsii.String("apigateway.amazonaws.com"),

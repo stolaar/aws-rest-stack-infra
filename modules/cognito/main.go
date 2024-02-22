@@ -20,10 +20,10 @@ func NewCognito(scope constructs.Construct, id string) *Stack {
 		Name:            jsii.String(config.PoolName),
 		AliasAttributes: &[]*string{jsii.String("email")},
 		AccountRecoverySetting: &cognitouserpool.CognitoUserPoolAccountRecoverySetting{
-			RecoveryMechanism: &cognitouserpool.CognitoUserPoolAccountRecoverySettingRecoveryMechanism{
+			RecoveryMechanism: []interface{}{&cognitouserpool.CognitoUserPoolAccountRecoverySettingRecoveryMechanism{
 				Name:     jsii.String("verified_email"),
 				Priority: jsii.Number(1),
-			},
+			}},
 		},
 		MfaConfiguration: jsii.String("OFF"),
 	})

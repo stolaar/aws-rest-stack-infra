@@ -22,7 +22,7 @@ type LambdaFunction struct {
 
 type InfraConfig struct {
 	UseCognito     bool             `json:"useCognito"`
-	LambdaFunction []LambdaFunction `json:"lambdaFunction"`
+	LambdaFunction []LambdaFunction `json:"lambdaFunctions"`
 }
 
 func GetCognitoConfig() *CognitoConfig {

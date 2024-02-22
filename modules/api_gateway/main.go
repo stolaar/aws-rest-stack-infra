@@ -29,10 +29,11 @@ func NewApiGateway(scope constructs.Construct, id string, config *ApiGatewayConf
 	var authorizer apigatewayauthorizer.ApiGatewayAuthorizer = nil
 
 	if config.UseCognito {
-		authorizer = CreateApiAuthorizer(scope, id, &apigatewayauthorizer.ApiGatewayAuthorizerConfig{
+		authorizer = CreateApiAuthorizer(scope, id+"authorizer", &apigatewayauthorizer.ApiGatewayAuthorizerConfig{
 			Name:         jsii.String("cognito-authorizer"),
 			Type:         jsii.String("COGNITO_USER_POOLS"),
 			ProviderArns: &[]*string{config.CognitoArn},
+			RestApiId:    restApi.Id(),
 		})
 	}
 
